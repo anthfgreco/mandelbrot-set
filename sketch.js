@@ -63,7 +63,7 @@ function draw() {
   text("Click quadrant to zoom in", 5, 5, 500, 100);
 }
 
-function mouseClicked() {
+function touchStarted() {
   print(mouseX, mouseY);
   if (mouseX < windowWidth/2 && mouseY < windowHeight/2){
     print("Upper left quadrant");
