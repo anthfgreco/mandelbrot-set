@@ -2,4 +2,4 @@
 
 Implementing the Mandelbrot Set fractal using p5.js
 
-Access here: https://anthfgreco.github.io/Mandelbrot-Set/
+Access here: https://anthfgreco.github.io/mandelbrot-set/
