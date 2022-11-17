@@ -2,6 +2,8 @@ var mapX1 = -2.0;
 var mapX2 = 1.0;
 var mapY1 = -1.0;
 var mapY2 = 1.0;
+// Change if you want higher/lower precision
+var max_iteration = 2 ** 9;
 
 function palette(t, a, b, c, d) {
   return [
@@ -50,18 +52,15 @@ function render() {
 
       const pixel = palette(
         i / max_iteration,
-        [0, 0, 0],
-        [0.59, 0.55, 0.75],
-        [0.1, 0.2, 0.3],
-        [0.75, 0.75, 0.75]
+        [0.0, 0.0, 0.0],
+        [0.39, 0.75, 0.95],
+        [0.05, 0.5, 0.9],
+        [0.55, 0.75, 0.75]
       );
       this.color(pixel[0], pixel[1], pixel[2], 1);
     })
     .setGraphical(true)
     .setOutput([width, height]);
-
-  // Change if you want higher/lower precision
-  var max_iteration = 2 ** 8;
 
   calculateMandelbrotSet(
     max_iteration,
@@ -72,6 +71,7 @@ function render() {
     mapY1,
     mapY2
   );
+
   const canvas = calculateMandelbrotSet.canvas;
   document.body.appendChild(canvas);
   canvas.addEventListener("click", mouseClicked);
@@ -80,21 +80,20 @@ function render() {
 function mouseClicked(e) {
   var mouseX = e.clientX;
   var mouseY = e.clientY;
-  console.log(mouseX, mouseY);
   if (mouseX < width / 2 && mouseY < height / 2) {
-    console.log("upper left");
+    //console.log("upper left");
     mapX2 = mapX2 - (mapX2 - mapX1) / 2;
     mapY1 = mapY1 - (mapY1 - mapY2) / 2;
   } else if (mouseX > width / 2 && mouseY < height / 2) {
-    console.log("upper right");
+    //console.log("upper right");
     mapX1 = mapX1 - (mapX1 - mapX2) / 2;
     mapY1 = mapY1 - (mapY1 - mapY2) / 2;
   } else if (mouseX < width / 2 && mouseY > height / 2) {
-    console.log("bottom left");
+    //console.log("bottom left");
     mapX2 = mapX2 - (mapX2 - mapX1) / 2;
     mapY2 = mapY2 - (mapY2 - mapY1) / 2;
   } else if (mouseX > width / 2 && mouseY > height / 2) {
-    console.log("bottom right");
+    //console.log("bottom right");
     mapX1 = mapX1 - (mapX1 - mapX2) / 2;
     mapY2 = mapY2 - (mapY2 - mapY1) / 2;
   }
