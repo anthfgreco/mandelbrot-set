@@ -1,96 +1,104 @@
 var mapX1 = -2.0;
-var mapX2 =  1.0;
+var mapX2 = 1.0;
 var mapY1 = -1.0;
-var mapY2 =  1.0;
+var mapY2 = 1.0;
 
-// 2^9 iterations per pixel, change if you want higher/lower precision
-var precision = 2**9;
-
-function setup() {
-  createCanvas(windowWidth, windowHeight);
-  drawMandelbrotSet();
+function palette(t, a, b, c, d) {
+  return [
+    a[0] + b[0] * Math.cos(6.28318 * (c[0] * t + d[0])),
+    a[1] + b[1] * Math.cos(6.28318 * (c[1] * t + d[1])),
+    a[2] + b[2] * Math.cos(6.28318 * (c[2] * t + d[2])),
+  ];
 }
 
-function drawMandelbrotSet() {
-  loadPixels();
-  for (var screenPixelX = 0; screenPixelX < width; screenPixelX++) {
-    for (var screenPixelY = 0; screenPixelY < height; screenPixelY++) {
-      var x0 = map(screenPixelX, 0, width,  mapX1, mapX2);
-      var y0 = map(screenPixelY, 0, height, mapY1, mapY2);
-      var x = 0;
-      var y = 0;
-      xold = 0;
-      yold = 0;
-      period = 0;
+function map_range(value, low1, high1, low2, high2) {
+  return low2 + ((high2 - low2) * (value - low1)) / (high1 - low1);
+}
 
-      var i = 0;
-      var max_iteration = precision;
-      
-      while (x*x + y*y <= 4 && i < max_iteration) {
-        var xtemp = x*x - y*y + x0;
-        y = 2*x*y + y0;
-        x = xtemp;
-        i = i+1;
+const gpu = new GPU();
+gpu.addFunction(palette).addFunction(map_range);
+var width = document.documentElement.clientWidth;
+var height = document.documentElement.clientHeight;
+//console.log(width, height);
+
+function render() {
+  const calculateMandelbrotSet = gpu
+    .createKernel(function (
+      max_iteration,
+      width,
+      height,
+      mapX1,
+      mapX2,
+      mapY1,
+      mapY2
+    ) {
+      let x0 = map_range(this.thread.x, 0, width, mapX1, mapX2);
+      let y0 = map_range(this.thread.y, 0, height, mapY1, mapY2);
+      let x = 0;
+      let y = 0;
+      let x2 = 0;
+      let y2 = 0;
+      let i = 0;
+
+      while (x2 + y2 <= 4 && i < max_iteration) {
+        y = 2 * x * y + y0;
+        x = x2 - y2 + x0;
+        x2 = x * x;
+        y2 = y * y;
+        i = i + 1;
       }
-      
-      // Color function
-      if (i < max_iteration ) {
-        var log_zn = log(x*x + y*y) / 2;
-        var nu = log(log_zn / log(2)) / log(2);
-        i = i + 1 - nu;
-      }
-      
-      var b = i % 255;
-      var g = (i % 255)*b+1;
-      var r = ( (i%1)*b*g ) % 255;
-      var pixelColor = color(r, g, b);
-      set(screenPixelX, screenPixelY, pixelColor);
-    }
+
+      const pixel = palette(
+        i / max_iteration,
+        [0, 0, 0],
+        [0.59, 0.55, 0.75],
+        [0.1, 0.2, 0.3],
+        [0.75, 0.75, 0.75]
+      );
+      this.color(pixel[0], pixel[1], pixel[2], 1);
+    })
+    .setGraphical(true)
+    .setOutput([width, height]);
+
+  // Change if you want higher/lower precision
+  var max_iteration = 2 ** 8;
+
+  calculateMandelbrotSet(
+    max_iteration,
+    width,
+    height,
+    mapX1,
+    mapX2,
+    mapY1,
+    mapY2
+  );
+  const canvas = calculateMandelbrotSet.canvas;
+  document.body.appendChild(canvas);
+  canvas.addEventListener("click", mouseClicked);
+}
+
+function mouseClicked(e) {
+  var mouseX = e.clientX;
+  var mouseY = e.clientY;
+  console.log(mouseX, mouseY);
+  if (mouseX < width / 2 && mouseY < height / 2) {
+    console.log("upper left");
+    mapX2 = mapX2 - (mapX2 - mapX1) / 2;
+    mapY1 = mapY1 - (mapY1 - mapY2) / 2;
+  } else if (mouseX > width / 2 && mouseY < height / 2) {
+    console.log("upper right");
+    mapX1 = mapX1 - (mapX1 - mapX2) / 2;
+    mapY1 = mapY1 - (mapY1 - mapY2) / 2;
+  } else if (mouseX < width / 2 && mouseY > height / 2) {
+    console.log("bottom left");
+    mapX2 = mapX2 - (mapX2 - mapX1) / 2;
+    mapY2 = mapY2 - (mapY2 - mapY1) / 2;
+  } else if (mouseX > width / 2 && mouseY > height / 2) {
+    console.log("bottom right");
+    mapX1 = mapX1 - (mapX1 - mapX2) / 2;
+    mapY2 = mapY2 - (mapY2 - mapY1) / 2;
   }
-  updatePixels();
+  render();
 }
 
-function draw() {
-  stroke(255, 255, 255);
-  // X axis line
-  line(0, windowHeight/2, windowWidth, windowHeight/2);
-  // Y axis line
-  line(windowWidth/2, 0, windowWidth/2, windowHeight);
-
-  textSize(22);
-  fill(255);
-  stroke(255);
-  text("Click quadrant to zoom in", 5, 5, 500, 100);
-}
-
-function touchStarted() {
-  print(mouseX, mouseY);
-  if (mouseX < windowWidth/2 && mouseY < windowHeight/2){
-    print("Upper left quadrant");
-    mapX2 = mapX2 - ((mapX2 - mapX1)/2);
-    mapY2 = mapY2 - ((mapY2 - mapY1)/2);
-  } 
-  else if (mouseX > windowWidth/2 && mouseY < windowHeight/2){
-    print("Upper right quadrant");
-    mapX1 = mapX1 - ((mapX1 - mapX2)/2);
-    mapY2 = mapY2 - ((mapY2 - mapY1)/2);
-  } 
-  else if (mouseX < windowWidth/2 && mouseY > windowHeight/2){
-    print("Bottom left quadrant");
-    mapX2 = mapX2 - ((mapX2 - mapX1)/2);
-    mapY1 = mapY1 - ((mapY1 - mapY2)/2);
-  } 
-  else if (mouseX > windowWidth/2 && mouseY > windowHeight/2){
-    print("Bottom right quadrant");
-    mapX1 = mapX1 - ((mapX1 - mapX2)/2);
-    mapY1 = mapY1 - ((mapY1 - mapY2)/2);
-  } 
-
-  drawMandelbrotSet();
-}
-
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  drawMandelbrotSet();
-  redraw();
-}
+render();
