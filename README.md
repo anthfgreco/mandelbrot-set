@@ -1,7 +1,7 @@
 ﻿# mandelbrot-set
 
-Implementing the Mandelbrot Set fractal using gpu.js
+Mandelbrot Set fractal using gpu.js.
 
-Click to zoom
+Click to zoom, refresh page for new color scheme.
 
 Access here: https://anthfgreco.github.io/mandelbrot-set/
