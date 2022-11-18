@@ -1,13 +1,25 @@
 const WIDTH = document.documentElement.clientWidth;
 const HEIGHT = document.documentElement.clientHeight;
+const MAX_ITERATION = 10 ** 9; //precision
 const gpu = new GPU();
 gpu.addFunction(palette).addFunction(map_range);
 
-var mapX1 = -2.0;
-var mapX2 = 1.0;
-var mapY1 = -1.0;
-var mapY2 = 1.0;
-const MAX_ITERATION = 10 ** 9; //precision
+var scale = 2;
+
+// desktop
+if (WIDTH > 800) {
+  var mapX1 = -2.0 * scale;
+  var mapX2 = 1.5 * scale;
+  var mapY1 = -1.0 * scale;
+  var mapY2 = 1.0 * scale;
+}
+// mobile
+else {
+  var mapX1 = -1.0 * scale;
+  var mapX2 = 0.3 * scale;
+  var mapY1 = -1.0 * scale;
+  var mapY2 = 1.0 * scale;
+}
 
 // fantastic color scheme with iteration 10**9
 var colors = [
@@ -75,7 +87,7 @@ const calculateMandelbrotSet = gpu
   .setGraphical(true)
   .setOutput([WIDTH, HEIGHT]);
 
-function render(gpu) {
+function render() {
   // I have no idea why I couldn't pass a colors list to the gpu which is why there's c1-c9
   calculateMandelbrotSet(
     MAX_ITERATION,
@@ -121,12 +133,8 @@ function mouseClicked(e) {
     mapX1 = mapX1 - (mapX1 - mapX2) / 2;
     mapY2 = mapY2 - (mapY2 - mapY1) / 2;
   }
-  render(gpu);
-  console.log({ zoom: 3 / (mapX2 - mapX1) + "x", precision: mapX2 - mapX1 });
+  render();
+  console.log({ zoom: 7 / (mapX2 - mapX1) + "x", precision: mapX2 - mapX1 });
 }
 
-function main() {
-  render(gpu);
-}
-
-main();
+render();
