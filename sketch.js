@@ -1,24 +1,25 @@
 const WIDTH = document.documentElement.clientWidth;
 const HEIGHT = document.documentElement.clientHeight;
-const MAX_ITERATION = 10 ** 9; //precision
+const MAX_ITERATION = 10 ** 30; // precision
+const CLICK_SCALE_MULTIPLIER = 2; // changes how much zoom per click, 1 is no zoom, 2 is 2x, 4 is 4x etc
+const DEBUG = false;
 const gpu = new GPU();
 gpu.addFunction(palette).addFunction(map_range);
 
 var scale = 2;
 
-// desktop
-if (WIDTH > 800) {
-  var mapX1 = -2.0 * scale;
-  var mapX2 = 1.5 * scale;
-  var mapY1 = -1.0 * scale;
-  var mapY2 = 1.0 * scale;
-}
+// true values for mandelbrot set
+var mandelbrot_x1 = -2.0 * scale;
+var mandelbrot_x2 = 1.0 * scale;
+var mandelbrot_y1 = -1.0 * scale;
+var mandelbrot_y2 = 1.0 * scale;
+
 // mobile
-else {
-  var mapX1 = -1.0 * scale;
-  var mapX2 = 0.3 * scale;
-  var mapY1 = -1.0 * scale;
-  var mapY2 = 1.0 * scale;
+if (WIDTH < 800) {
+  mandelbrot_x1 = -1.0 * scale;
+  mandelbrot_x2 = 0.3 * scale;
+  mandelbrot_y1 = -1.0 * scale;
+  mandelbrot_y2 = 1.0 * scale;
 }
 
 // fantastic color scheme with iteration 10**9
@@ -36,9 +37,9 @@ var colors = [
 
 function palette(t, b, c, d) {
   return [
-    b[0] * Math.cos(6.28318 * (b[0] * t + b[0])),
-    b[1] * Math.cos(6.28318 * (c[1] * t + d[1])),
-    b[2] * Math.cos(6.28318 * (c[2] * t + d[2])),
+    b[0] * Math.tan(6.28318 * (b[0] * t + b[0])),
+    b[1] * Math.tan(6.28318 * (c[1] * t + d[1])),
+    b[2] * Math.tan(6.28318 * (c[2] * t + d[2])),
   ];
 }
 
@@ -49,12 +50,12 @@ function map_range(value, low1, high1, low2, high2) {
 const calculateMandelbrotSet = gpu
   .createKernel(function (
     MAX_ITERATION,
-    width,
-    height,
-    mapX1,
-    mapX2,
-    mapY1,
-    mapY2,
+    WIDTH,
+    HEIGHT,
+    mandelbrot_x1,
+    mandelbrot_x2,
+    mandelbrot_y1,
+    mandelbrot_y2,
     c1,
     c2,
     c3,
@@ -63,10 +64,12 @@ const calculateMandelbrotSet = gpu
     c6,
     c7,
     c8,
-    c9
+    c9,
+    DEBUG
   ) {
-    let x0 = map_range(this.thread.x, 0, width, mapX1, mapX2);
-    let y0 = map_range(this.thread.y, 0, height, mapY1, mapY2);
+    // map screen pixel x and y to mandelbrot x and y
+    let x0 = map_range(this.thread.x, 0, WIDTH, mandelbrot_x1, mandelbrot_x2);
+    let y0 = map_range(this.thread.y, 0, HEIGHT, mandelbrot_y1, mandelbrot_y2);
     let x = 0;
     let y = 0;
     let x2 = 0;
@@ -83,20 +86,27 @@ const calculateMandelbrotSet = gpu
 
     const pixel = palette(i, [c1, c2, c3], [c4, c5, c6], [c7, c8, c9]);
     this.color(pixel[0], pixel[1], pixel[2], 1);
+
+    // draw yellow crosshair on center
+    if (DEBUG) {
+      if (this.thread.x == WIDTH / 2 || this.thread.y == HEIGHT / 2) {
+        this.color(255, 255, 0, 1);
+      }
+    }
   })
   .setGraphical(true)
   .setOutput([WIDTH, HEIGHT]);
 
 function render() {
-  // I have no idea why I couldn't pass a colors list to the gpu which is why there's c1-c9
+  // I have no idea why I couldn't pass a colors list to the gpu, which is why there's c1-c9
   calculateMandelbrotSet(
     MAX_ITERATION,
     WIDTH,
     HEIGHT,
-    mapX1,
-    mapX2,
-    mapY1,
-    mapY2,
+    mandelbrot_x1,
+    mandelbrot_x2,
+    mandelbrot_y1,
+    mandelbrot_y2,
     colors[0][0],
     colors[0][1],
     colors[0][2],
@@ -105,7 +115,8 @@ function render() {
     colors[1][2],
     colors[2][0],
     colors[2][1],
-    colors[2][2]
+    colors[2][2],
+    DEBUG
   );
 
   const canvas = calculateMandelbrotSet.canvas;
@@ -114,27 +125,61 @@ function render() {
 }
 
 function mouseClicked(e) {
-  var mouseX = e.clientX;
-  var mouseY = e.clientY;
-  if (mouseX < WIDTH / 2 && mouseY < HEIGHT / 2) {
-    //console.log("upper left");
-    mapX2 = mapX2 - (mapX2 - mapX1) / 2;
-    mapY1 = mapY1 - (mapY1 - mapY2) / 2;
-  } else if (mouseX > WIDTH / 2 && mouseY < HEIGHT / 2) {
-    //console.log("upper right");
-    mapX1 = mapX1 - (mapX1 - mapX2) / 2;
-    mapY1 = mapY1 - (mapY1 - mapY2) / 2;
-  } else if (mouseX < WIDTH / 2 && mouseY > HEIGHT / 2) {
-    //console.log("bottom left");
-    mapX2 = mapX2 - (mapX2 - mapX1) / 2;
-    mapY2 = mapY2 - (mapY2 - mapY1) / 2;
-  } else if (mouseX > WIDTH / 2 && mouseY > HEIGHT / 2) {
-    //console.log("bottom right");
-    mapX1 = mapX1 - (mapX1 - mapX2) / 2;
-    mapY2 = mapY2 - (mapY2 - mapY1) / 2;
+  let mouseX = e.clientX;
+  let mouseY = e.clientY;
+  let x0 = map_range(mouseX, 0, WIDTH, mandelbrot_x1, mandelbrot_x2);
+  let y0 = map_range(mouseY, 0, HEIGHT, mandelbrot_y1, mandelbrot_y2);
+
+  if (DEBUG) {
+    console.log("mandelbrot x:", [mandelbrot_x1, mandelbrot_x2]);
+    console.log("mandelbrot y:", [mandelbrot_y1, mandelbrot_y2]);
+    console.log("mandelbrot mouse:", [x0, y0]);
+  }
+
+  x1 = mandelbrot_x1;
+  x2 = mandelbrot_x2;
+  y1 = mandelbrot_y1;
+  y2 = mandelbrot_y2;
+
+  x_sum = x1 + x2;
+  y_sum = y1 + y2;
+  x_diff = x2 - x1;
+  y_diff = y2 - y1;
+
+  // Translating and scaling properly took ages to figure out
+
+  // Translate to mouse positio
+  mandelbrot_x1 -= x0 - x_sum / 2;
+  mandelbrot_x2 -= x0 - x_sum / 2;
+  mandelbrot_y1 += y0 - y_sum / 2;
+  mandelbrot_y2 += y0 - y_sum / 2;
+
+  // Scale
+  if (e.shiftKey) {
+    console.log("Shift key is pressed.");
+    mandelbrot_x1 = x_sum / 2 - x_diff / (2 / CLICK_SCALE_MULTIPLIER);
+    mandelbrot_x2 = x_sum / 2 + x_diff / (2 / CLICK_SCALE_MULTIPLIER);
+    mandelbrot_y1 = y_sum / 2 - (y2 - y1) / (2 / CLICK_SCALE_MULTIPLIER);
+    mandelbrot_y2 = y_sum / 2 + (y2 - y1) / (2 / CLICK_SCALE_MULTIPLIER);
+  } else {
+    mandelbrot_x1 = x_sum / 2 - x_diff / (2 * CLICK_SCALE_MULTIPLIER);
+    mandelbrot_x2 = x_sum / 2 + x_diff / (2 * CLICK_SCALE_MULTIPLIER);
+    mandelbrot_y1 = y_sum / 2 - (y2 - y1) / (2 * CLICK_SCALE_MULTIPLIER);
+    mandelbrot_y2 = y_sum / 2 + (y2 - y1) / (2 * CLICK_SCALE_MULTIPLIER);
+  }
+
+  // Translate back to original position
+  mandelbrot_x1 += x0 - x_sum / 2;
+  mandelbrot_x2 += x0 - x_sum / 2;
+  mandelbrot_y1 -= y0 - y_sum / 2;
+  mandelbrot_y2 -= y0 - y_sum / 2;
+
+  if (DEBUG) {
+    console.log("mandelbrot x:", [mandelbrot_x1, mandelbrot_x2]);
+    console.log("mandelbrot y:", [mandelbrot_y1, mandelbrot_y2]);
+    console.log("");
   }
   render();
-  console.log({ zoom: 7 / (mapX2 - mapX1) + "x", precision: mapX2 - mapX1 });
 }
 
 render();
